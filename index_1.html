@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Asset Checker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   SWISS GRID — один шрифт, одна сетка, один акцент
+   ============================================================ */
+:root{
+  --ground:#131313;
+  --plane:#1a1a1a;
+  --rule:#2a2a2a;
+  --rule-hi:#3d3d3d;
+  --ink:#f2f2ef;
+  --ink-2:#9a9a95;
+  --ink-3:#5f5f5b;
+  --block:#d8d8d3;
+  --signal:#e8352a;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --u:8px;
+  --rail:308px;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:var(--ground);color:var(--ink);
+  font-family:var(--mono);font-size:13px;line-height:1.4;font-weight:400;
+  -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;
+}
+button,input,select{font-family:inherit;font-size:inherit;color:inherit}
+::selection{background:var(--signal);color:#fff}
+:focus-visible{outline:1px solid var(--signal);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* типографические роли */
+.t-display{font-size:22px;font-weight:600;letter-spacing:-.035em;line-height:1.1}
+.t-lead{font-size:16px;font-weight:500;letter-spacing:-.02em}
+.t-eyebrow{font-size:10px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-3)}
+.t-label{font-size:10px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2)}
+.t-data{font-size:15px;font-weight:500;letter-spacing:-.02em}
+.t-micro{font-size:10.5px;font-weight:400;color:var(--ink-2);line-height:1.45}
+.sig{color:var(--signal)}
+.dim{color:var(--ink-3)}
+
+/* каркас */
+.shell{display:flex;flex-direction:column;min-height:100vh}
+.masthead{display:grid;grid-template-columns:var(--rail) 1fr auto;align-items:center;border-bottom:1px solid var(--rule-hi)}
+.mast-cell{padding:calc(var(--u)*2.25) calc(var(--u)*2.5);border-right:1px solid var(--rule)}
+.mast-cell:last-child{border-right:0}
+
+.field{display:flex;align-items:baseline;gap:calc(var(--u)*1.5)}
+.field input{background:transparent;border:0;border-bottom:1px solid var(--rule-hi);
+  padding:2px 0 4px;flex:1;min-width:0;font-weight:500;letter-spacing:-.01em}
+.field input:focus{border-bottom-color:var(--ink);outline:0}
+.field input::placeholder{color:var(--ink-3)}
+
+.body{display:flex;flex:1;min-height:0}
+
+/* левая колонка */
+.rail{width:var(--rail);flex:0 0 var(--rail);border-right:1px solid var(--rule-hi);
+  display:flex;flex-direction:column;min-height:0}
+.drop{display:block;margin:calc(var(--u)*2);padding:calc(var(--u)*3) var(--u);
+  border:1px dashed var(--rule-hi);text-align:center;cursor:pointer;transition:border-color .12s,color .12s}
+.drop:hover,.drop.hot{border-color:var(--ink);color:var(--ink)}
+.drop input{display:none}
+.drop .t-micro{margin-top:6px}
+
+.railact{padding:0 calc(var(--u)*2) calc(var(--u)*2)}
+.queue{flex:1;overflow-y:auto;border-top:1px solid var(--rule-hi)}
+.qrow{display:grid;grid-template-columns:26px 40px 1fr 16px;gap:calc(var(--u)*1.25);
+  padding:calc(var(--u)*1.5) calc(var(--u)*2);border-bottom:1px solid var(--rule);
+  cursor:pointer;align-items:start}
+.qdel{background:transparent;border:0;color:var(--ink-3);cursor:pointer;font-size:15px;
+  line-height:1;padding:1px 0;opacity:0;transition:opacity .12s,color .12s}
+.qrow:hover .qdel,.qdel:focus-visible{opacity:1}
+.qdel:hover{color:var(--signal)}
+.cross{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.cross line{stroke:rgba(19,19,19,.34);stroke-width:1}
+.unit.fail .cross line{stroke:var(--rule-hi)}
+.unit.near .cross line{stroke:var(--signal);opacity:.55}
+.qrow:hover{background:var(--plane)}
+.qrow.sel{background:var(--plane);box-shadow:inset 2px 0 0 var(--ink)}
+.qnum{font-size:11px;font-weight:600;color:var(--ink-3);padding-top:2px}
+.qrow.sel .qnum{color:var(--ink)}
+.qthumb{width:40px;height:40px;background:#242424;overflow:hidden}
+.qthumb img{width:100%;height:100%;object-fit:cover;display:block}
+.qname{font-size:11.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.01em}
+.qstat{font-size:10px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;margin-top:4px}
+.qstat.ok{color:var(--ink-2)}
+.qstat.no{color:var(--signal)}
+.qctx{width:100%;background:transparent;border:0;border-bottom:1px solid var(--rule-hi);
+  font-size:10.5px;padding:3px 0;margin-top:6px}
+.qctx:focus{border-bottom-color:var(--ink);outline:0}
+.qctx::placeholder{color:var(--ink-3)}
+.qout{font-size:9.5px;color:var(--ink-3);margin-top:5px;word-break:break-all;line-height:1.4}
+
+.btn{display:block;width:100%;background:transparent;border:1px solid var(--rule-hi);
+  padding:calc(var(--u)*1.25);cursor:pointer;font-size:10px;font-weight:600;
+  letter-spacing:.16em;text-transform:uppercase;transition:background .12s,border-color .12s,color .12s}
+.btn:hover:not(:disabled){background:var(--ink);border-color:var(--ink);color:var(--ground)}
+.btn:disabled{color:var(--ink-3);cursor:default}
+.btn+.btn{margin-top:var(--u)}
+
+/* рабочая область */
+.work{flex:1;min-width:0;overflow-y:auto}
+.void{height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:var(--u);color:var(--ink-3);text-align:center}
+
+.slab{padding:calc(var(--u)*3) calc(var(--u)*4) calc(var(--u)*2.5);border-bottom:1px solid var(--rule)}
+.slab-tight{padding-top:calc(var(--u)*2);padding-bottom:calc(var(--u)*2)}
+
+.measure{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;background:var(--rule);
+  gap:1px;border:1px solid var(--rule);margin-top:calc(var(--u)*2)}
+.mcell{background:var(--ground);padding:calc(var(--u)*1.5) calc(var(--u)*2)}
+.mcell .t-label{margin-bottom:6px}
+.mcell .t-micro{margin-top:4px}
+
+.selector{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:1px;
+  background:var(--rule);border:1px solid var(--rule)}
+.sel-cell{background:var(--ground);padding:calc(var(--u)*1.25) calc(var(--u)*2)}
+.sel-cell .t-label{margin-bottom:5px}
+.combo{position:relative}
+.combo-btn{width:100%;display:flex;justify-content:space-between;align-items:center;gap:10px;
+  background:transparent;border:0;padding:2px 0;cursor:pointer;text-align:left;
+  font-weight:500;font-size:13px;letter-spacing:-.01em}
+.combo-btn:disabled{color:var(--ink-3);cursor:default}
+.combo-val{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.combo-caret{font-size:9px;color:var(--ink-3);flex:0 0 auto}
+.combo.open .combo-caret{color:var(--ink)}
+.combo-list{position:absolute;z-index:40;top:calc(100% + 12px);left:-17px;
+  min-width:calc(100% + 34px);background:var(--plane);border:1px solid var(--rule-hi);
+  box-shadow:0 20px 48px rgba(0,0,0,.66);max-height:340px;overflow-y:auto;padding:6px 0}
+.combo-list[hidden]{display:none}
+.combo-opt{display:flex;justify-content:space-between;gap:24px;align-items:baseline;
+  padding:11px 18px;cursor:pointer;font-size:12.5px;line-height:1.5;white-space:nowrap}
+.combo-opt:hover,.combo-opt.cursor{background:var(--rule)}
+.combo-opt.on{box-shadow:inset 2px 0 0 var(--signal)}
+.combo-opt .meta{font-size:10px;color:var(--ink-3);letter-spacing:.08em;flex:0 0 auto}
+.sel-reset{background:var(--ground);display:flex;align-items:center;padding:0 calc(var(--u)*2)}
+.sel-reset button{background:transparent;border:0;cursor:pointer;color:var(--ink-3);
+  font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:600}
+.sel-reset button:hover{color:var(--ink)}
+
+.focus{display:grid;grid-template-columns:250px 1fr;gap:calc(var(--u)*4);align-items:start;margin-top:calc(var(--u)*3)}
+.focus-verdict{font-size:34px;font-weight:600;letter-spacing:-.045em;line-height:1;margin-bottom:calc(var(--u)*1.5)}
+.focus-verdict.no{color:var(--signal)}
+
+.grouphead{display:flex;justify-content:space-between;align-items:baseline;
+  padding:calc(var(--u)*3) calc(var(--u)*4) calc(var(--u)*1.5);border-bottom:1px solid var(--rule-hi)}
+.matrix{display:grid;grid-template-columns:repeat(auto-fill,minmax(272px,1fr));
+  background:var(--rule);gap:1px;border-bottom:1px solid var(--rule)}
+.unit{background:var(--ground);padding:calc(var(--u)*2.5) calc(var(--u)*2.5) calc(var(--u)*3)}
+.unit.fail{opacity:.5}
+.unit-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:calc(var(--u)*2)}
+.stage{height:132px;display:flex;align-items:flex-end;margin-bottom:calc(var(--u)*2)}
+.rect{background:var(--block);overflow:hidden;position:relative}
+.unit.fail .rect{background:transparent;border:1px solid var(--rule-hi)}
+.unit.near .rect{background:transparent;border:1px solid var(--signal)}
+.rect img{width:100%;height:100%;object-fit:cover;display:block}
+.unit-ar{font-size:19px;font-weight:600;letter-spacing:-.03em;margin-top:3px}
+.unit-px{font-size:10.5px;color:var(--ink-2);margin-top:2px}
+
+.checks{margin-top:calc(var(--u)*2);border-top:1px solid var(--rule);
+  padding-top:calc(var(--u)*1.5);display:grid;gap:6px}
+.chk{display:grid;grid-template-columns:14px 1fr;gap:8px;font-size:10.5px;line-height:1.45}
+.chk .m{font-weight:600}
+.chk.pass .m{color:var(--ink)}
+.chk.pass .x{color:var(--ink-2)}
+.chk.fail .m,.chk.fail .x{color:var(--signal);font-weight:500}
+.chk.warn .m,.chk.warn .x{color:var(--ink)}
+.chk.info .m,.chk.info .x{color:var(--ink-3)}
+
+.tail{padding:calc(var(--u)*2) calc(var(--u)*4);border-top:1px solid var(--rule-hi);
+  display:flex;justify-content:space-between;align-items:center;gap:var(--u)}
+
+@media (max-width:900px){
+  .body{flex-direction:column}
+  .rail{width:auto;flex:none;border-right:0;border-bottom:1px solid var(--rule-hi)}
+  .queue{max-height:260px}
+  .masthead{grid-template-columns:1fr}
+  .mast-cell{border-right:0;border-bottom:1px solid var(--rule)}
+  .measure{grid-auto-flow:row;grid-auto-columns:auto}
+  .selector{grid-template-columns:1fr}
+  .focus{grid-template-columns:1fr}
+  .slab{padding:calc(var(--u)*2.5) calc(var(--u)*2)}
+  .grouphead,.tail{padding-left:calc(var(--u)*2);padding-right:calc(var(--u)*2)}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <div class="masthead">
+    <div class="mast-cell"><span class="t-display">Asset&nbsp;Checker</span></div>
+    <div class="mast-cell">
+      <div class="field">
+        <span class="t-label">Проект</span>
+        <input id="project" placeholder="ProjectName" autocomplete="off" spellcheck="false">
+      </div>
+    </div>
+    <div class="mast-cell"><span class="t-eyebrow" id="specCount"></span></div>
+  </div>
+
+  <div class="body">
+    <aside class="rail">
+      <label class="drop" id="drop" tabindex="0">
+        <div class="t-label" style="color:inherit">Перетащи файлы</div>
+        <div class="t-micro">или нажми · PNG JPG MP4 MOV</div>
+        <input type="file" id="input" multiple accept="image/*,video/*">
+      </label>
+      <div class="railact">
+        <button class="btn" id="btnZip" disabled>Скачать ZIP переименованных</button>
+      </div>
+      <div class="queue" id="queue"></div>
+    </aside>
+
+    <main class="work" id="work">
+      <div class="void">
+        <div class="t-lead dim">Очередь пуста</div>
+        <div class="t-micro">Закинь ассет — покажу, куда он проходит.</div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+/* ==========================================================================
+   1 · БАЗА ПЛЕЙСМЕНТОВ
+   cat — площадка · group — тип ассета · exact — апскейл не принимается
+   ========================================================================== */
+const KB=1024, MB=1024*1024, GB=1024*MB;
+
+/* JPEG — основной формат для статики. false → вернуться к спекам as-is. */
+const JPEG_PRIMARY_FOR_STATIC = true;
+
+const SPECS = [
+ {cat:'Instagram',group:'Feed',place:'Static or video',ar:'1 × 1',w:1080,h:1080,kind:'any',
+  max:10*MB,rec:1*MB,formats:['png','mp4'],padding:'none'},
+ {cat:'Instagram',group:'Feed',place:'Static or video',ar:'3 × 4',w:1080,h:1350,kind:'any',
+  max:10*MB,rec:1*MB,formats:['png','mp4'],padding:'none'},
+ {cat:'Instagram',group:'Story',place:'Story',ar:'9 × 16',w:1080,h:1920,kind:'video',
+  max:4*GB,formats:['mp4'],maxDur:15,padding:'none',note:'Динамика без пауз'},
+ {cat:'Instagram',group:'Reels',place:'Reels',ar:'9 × 16',w:1080,h:1920,kind:'video',
+  max:4*GB,formats:['mp4'],maxDur:60,padding:'none',note:'Динамика без пауз'},
+
+ {cat:'Ramotion.com',group:'Static',place:'Static',ar:'16 × 9',w:2880,h:1620,kind:'image',
+  max:1*MB,rec:1*MB,formats:['jpg'],padding:'none'},
+ {cat:'Ramotion.com',group:'Static',place:'Static',ar:'4 × 3',w:2880,h:2160,kind:'image',
+  max:1*MB,rec:1*MB,formats:['jpg'],padding:'none'},
+ {cat:'Ramotion.com',group:'Static',place:'Static',ar:'3 × 4',w:2880,h:3840,kind:'image',
+  max:1*MB,rec:1*MB,formats:['jpg'],padding:'none'},
+ {cat:'Ramotion.com',group:'Video',place:'Video',ar:'16 × 9',w:1920,h:1080,kind:'video',
+  max:10*MB,formats:['mp4'],codec:'h264',audioCodec:'aac',fps:60},
+ {cat:'Ramotion.com',group:'Thumbnail',place:'Static thumbnail',ar:'40 × 21',w:1200,h:630,kind:'image',
+  max:5*MB,formats:['jpg'],exact:true},
+ {cat:'Ramotion.com',group:'Cover',place:'Cover video',ar:'4 × 3',w:1600,h:1200,kind:'video',
+  max:10*MB,formats:['mp4'],codec:'h264',audioCodec:'aac',fps:60,padding:'none'},
+ {cat:'Ramotion.com',group:'Cover',place:'Cover static',ar:'4 × 3',w:1600,h:1200,kind:'image',
+  max:1*MB,formats:['jpg','png'],padding:'none',note:'Статичный кадр из видео'},
+ {cat:'Ramotion.com',group:'Avatar',place:"Client's avatar",ar:'1 × 1',w:400,h:400,kind:'image',
+  max:100*KB,formats:['jpg'],padding:'none',exact:true},
+
+ {cat:'Behance',group:'Static',place:'Static',ar:'16 × 9',w:2880,h:1620,kind:'image',
+  max:10*MB,rec:1*MB,formats:['png'],rgb:true,padding:'24px 12px'},
+ {cat:'Behance',group:'Static',place:'Static',ar:'1 × 1',w:2880,h:2880,kind:'image',
+  max:10*MB,rec:1*MB,formats:['png'],rgb:true,padding:'24px 12px'},
+ {cat:'Behance',group:'Static',place:'Static',ar:'4 × 3',w:2880,h:2160,kind:'image',
+  max:10*MB,rec:1*MB,formats:['png'],rgb:true,padding:'24px 12px'},
+ {cat:'Behance',group:'Video',place:'Video',ar:'16 × 9',w:1920,h:1080,kind:'video',
+  max:10*MB,formats:['mp4'],codec:'h264',fps:60,padding:'16px 8px'},
+ {cat:'Behance',group:'Cover',place:'Cover',ar:'—',w:808,h:632,kind:'image',
+  max:10*MB,rec:1*MB,formats:['png'],rgb:true,exact:true},
+
+ {cat:'Dribbble',group:'Static',place:'Static',ar:'4 × 3',w:2880,h:2160,kind:'image',
+  max:20*MB,formats:['png'],noAlpha:true,padding:'none',note:'По спеке PNG 24 bit'},
+ {cat:'Dribbble',group:'Video',place:'Video',ar:'4 × 3',w:2880,h:2160,kind:'video',
+  max:20*MB,formats:['mp4'],codec:'h264',fps:60,minDur:3,maxDur:60,padding:'none'},
+ {cat:'Dribbble',group:'Video',place:'Video (минимум)',ar:'4 × 3',w:1600,h:1200,kind:'video',
+  max:20*MB,formats:['mp4'],codec:'h264',fps:60,minDur:3,maxDur:60,padding:'none',
+  note:'Нижняя граница при перевесе'},
+
+ {cat:'Facebook',group:'Static',place:'Static',ar:'16 × 9',w:1280,h:720,kind:'image',
+  max:30*MB,formats:['png'],noAlpha:true,padding:'none',note:'До 12 картинок на публикацию'},
+ {cat:'Facebook',group:'Video',place:'Video',ar:'16 × 9',w:1280,h:720,kind:'video',
+  max:4*GB,formats:['mp4'],codec:'h264',fps:60,maxDur:241*60,note:'Одно видео на публикацию'},
+
+ {cat:'LinkedIn',group:'Static',place:'Static',ar:'16 × 9',w:1280,h:720,kind:'image',
+  max:8*MB,formats:['png'],noAlpha:true,padding:'none',note:'До 12 картинок на публикацию'},
+ {cat:'LinkedIn',group:'Video',place:'Video',ar:'16 × 9',w:1280,h:720,kind:'video',
+  max:4*GB,formats:['mp4'],codec:'h264',fps:60,maxDur:241*60,note:'Одно видео на публикацию'},
+
+ {cat:'Twitter',group:'Static',place:'Static',ar:'16 × 9',w:1280,h:720,kind:'image',
+  max:15*MB,formats:['png'],noAlpha:true,padding:'none',note:'Тред: файлы нумеруются по порядку'},
+ {cat:'Twitter',group:'Video',place:'Video',ar:'16 × 9',w:1280,h:720,kind:'video',
+  max:512*MB,formats:['mp4'],codec:'h264',fps:60,maxDur:140,note:'Можно без звука'},
+];
+
+if(JPEG_PRIMARY_FOR_STATIC){
+  for(const s of SPECS){
+    if(s.kind === 'video') continue;
+    s.formats = ['jpg', ...s.formats.filter(f => f !== 'jpg')];
+  }
+}
+SPECS.forEach((s,i) => s.id = i);
+
+const CAT_ORDER = ['Ramotion.com','Behance','Dribbble','Instagram','Twitter','LinkedIn','Facebook'];
+const catRank = c => { const i = CAT_ORDER.indexOf(c); return i < 0 ? 99 : i; };
+
+/* ==========================================================================
+   2 · ЧТЕНИЕ ФАЙЛА
+   ========================================================================== */
+const fmtBytes = b =>
+  b < KB ? b + ' B' :
+  b < MB ? (b/KB).toFixed(b < 100*KB ? 1 : 0) + ' KB' :
+  b < GB ? (b/MB).toFixed(b < 100*MB ? 2 : 1) + ' MB' :
+           (b/GB).toFixed(2) + ' GB';
+const fmtLimit = b => b < MB ? Math.round(b/KB)+' KB' : b < GB ? Math.round(b/MB)+' MB' : (b/GB)+' GB';
+const fmtDur = s => s == null ? '—'
+  : s < 60 ? (+s.toFixed(2)) + ' сек'
+  : Math.floor(s/60) + ' мин ' + Math.round(s%60) + ' сек';
+const extOf = n => ((/\.([a-z0-9]+)$/i.exec(n) || [])[1] || '').toLowerCase();
+const normFmt = e => e === 'jpeg' ? 'jpg' : (e === 'mov' || e === 'm4v') ? 'mp4' : e;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function parsePNG(buf){
+  const dv = new DataView(buf);
+  if(dv.byteLength < 33 || dv.getUint32(0) !== 0x89504E47) return null;
+  const o = {w:dv.getUint32(16), h:dv.getUint32(20), depth:dv.getUint8(24), ct:dv.getUint8(25), trns:false};
+  let off = 8;
+  while(off + 12 <= dv.byteLength){
+    const len = dv.getUint32(off);
+    const t = String.fromCharCode(dv.getUint8(off+4),dv.getUint8(off+5),dv.getUint8(off+6),dv.getUint8(off+7));
+    if(t === 'tRNS') o.trns = true;
+    if(t === 'IDAT' || t === 'IEND') break;
+    off += 12 + len;
+  }
+  const ch = ({0:1,2:3,3:1,4:2,6:4})[o.ct] || 1;
+  o.hasAlpha = o.ct === 4 || o.ct === 6 || o.trns;
+  o.bits = o.depth * (o.ct === 3 ? 3 : ch);
+  o.model = o.ct === 3 ? 'Indexed' : (o.ct === 0 || o.ct === 4) ? 'Gray' : 'RGB';
+  o.label = 'PNG-' + o.bits + (o.hasAlpha ? ' + A' : '');
+  return o;
+}
+
+function parseJPEG(buf){
+  const dv = new DataView(buf);
+  if(dv.byteLength < 4 || dv.getUint16(0) !== 0xFFD8) return null;
+  let off = 2;
+  while(off + 4 < dv.byteLength){
+    if(dv.getUint8(off) !== 0xFF){ off++; continue; }
+    const m = dv.getUint8(off+1);
+    if(m === 0xD8 || m === 0x01 || (m >= 0xD0 && m <= 0xD7)){ off += 2; continue; }
+    const len = dv.getUint16(off+2);
+    const isSOF = m >= 0xC0 && m <= 0xCF && m !== 0xC4 && m !== 0xC8 && m !== 0xCC;
+    if(isSOF){
+      const c = dv.getUint8(off+9);
+      return {h:dv.getUint16(off+5), w:dv.getUint16(off+7), hasAlpha:false,
+        model: c === 4 ? 'CMYK' : c === 1 ? 'Gray' : 'RGB',
+        label: 'JPEG ' + (c === 4 ? 'CMYK' : c === 1 ? '8-bit Gray' : '24-bit RGB')};
+    }
+    if(m === 0xDA) break;
+    off += 2 + len;
+  }
+  return null;
+}
+
+function parseMP4(buf){
+  const dv = new DataView(buf);
+  const res = {videoCodec:null,audioCodec:null,fps:null,hasAudio:false,duration:null,w:null,h:null,cfr:null};
+  const tracks = []; let cur = null;
+  const CONT = new Set(['moov','trak','mdia','minf','stbl','edts']);
+  const tag = o => String.fromCharCode(dv.getUint8(o),dv.getUint8(o+1),dv.getUint8(o+2),dv.getUint8(o+3));
+
+  (function walk(start,end,d){
+    let off = start;
+    while(off + 8 <= end && d < 12){
+      let size = dv.getUint32(off); const type = tag(off+4); let hdr = 8;
+      if(size === 1){ if(off+16 > end) return;
+        size = dv.getUint32(off+8)*4294967296 + dv.getUint32(off+12); hdr = 16; }
+      else if(size === 0) size = end - off;
+      if(size < hdr) return;
+      const bs = off + hdr, be = Math.min(off + size, end);
+      if(type === 'trak'){ cur = {handler:null,timescale:null,dur:null,fmt:null,samples:0,entries:0,w:null,h:null}; tracks.push(cur); }
+      if(CONT.has(type)) walk(bs, be, d+1);
+      else if(type === 'mvhd'){
+        const v = dv.getUint8(bs);
+        const ts = v === 1 ? dv.getUint32(bs+20) : dv.getUint32(bs+12);
+        const du = v === 1 ? dv.getUint32(bs+24)*4294967296 + dv.getUint32(bs+28) : dv.getUint32(bs+16);
+        if(ts) res.duration = du/ts;
+      }
+      else if(type === 'hdlr' && cur) cur.handler = tag(bs+8);
+      else if(type === 'mdhd' && cur){
+        const v = dv.getUint8(bs);
+        cur.timescale = v === 1 ? dv.getUint32(bs+20) : dv.getUint32(bs+12);
+        cur.dur = v === 1 ? dv.getUint32(bs+24)*4294967296 + dv.getUint32(bs+28) : dv.getUint32(bs+16);
+      }
+      else if(type === 'tkhd' && cur){
+        /* v0: 4 flags + 20 header + 8 reserved + 8 layer/group/volume/res + 36 matrix = 76
+           v1: те же поля, но creation/modification/duration по 8 байт = 88 */
+        const v = dv.getUint8(bs), base = v === 1 ? bs+88 : bs+76;
+        if(base + 8 <= be){ cur.w = dv.getUint32(base)/65536; cur.h = dv.getUint32(base+4)/65536; }
+      }
+      else if(type === 'stsd' && cur){ if(bs+16 <= be) cur.fmt = tag(bs+12); }
+      else if(type === 'stts' && cur){
+        const n = dv.getUint32(bs+4); let total = 0, p = bs+8;
+        for(let i = 0; i < n && p+8 <= be; i++, p += 8) total += dv.getUint32(p);
+        cur.samples = total; cur.entries = n;
+      }
+      off += size;
+    }
+  })(0, dv.byteLength, 0);
+
+  const CODEC = {avc1:'H.264',avc3:'H.264',hvc1:'H.265',hev1:'H.265',dvh1:'H.265',dvhe:'H.265',
+    vp09:'VP9',vp08:'VP8',av01:'AV1',mp4v:'MPEG-4',s263:'H.263',
+    apch:'ProRes 422 HQ',apcn:'ProRes 422',apcs:'ProRes 422 LT',apco:'ProRes 422 Proxy',
+    ap4h:'ProRes 4444',ap4x:'ProRes 4444 XQ',
+    mp4a:'AAC','ac-3':'AC-3','ec-3':'E-AC-3',alac:'ALAC',lpcm:'PCM',sowt:'PCM',twos:'PCM',
+    '.mp3':'MP3',samr:'AMR',Opus:'Opus'};
+  for(const t of tracks){
+    if(t.handler === 'vide'){
+      res.videoCodec = CODEC[t.fmt] || t.fmt || null;
+      if(t.w && t.h){ res.w = Math.round(t.w); res.h = Math.round(t.h); }
+      if(t.timescale && t.dur && t.samples){
+        const secs = t.dur / t.timescale;
+        if(secs > 0) res.fps = t.samples / secs;
+        res.cfr = t.entries === 1;
+      } else if(t.samples === 0){
+        res.note = 'фрагментированный MP4 · таблица кадров лежит в moof';
+      }
+    } else if(t.handler === 'soun'){
+      res.hasAudio = true; res.audioCodec = CODEC[t.fmt] || t.fmt || null;
+    }
+  }
+
+  /* Запасной путь: если обход структуры кодек не дал (нестандартная вложенность,
+     несколько записей в stsd, самописный мукс) — ищем конфигурационные боксы
+     напрямую по сигнатуре. avcC встречается только у H.264, hvcC — только у H.265. */
+  if(!res.videoCodec){
+    const SIG = {avcC:'H.264', hvcC:'H.265', dvcC:'H.265', av1C:'AV1', vpcC:'VP9', esds:'MPEG-4'};
+    const b = new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength);
+    for(let p = 0; p < b.length - 4; p++){
+      const s = String.fromCharCode(b[p],b[p+1],b[p+2],b[p+3]);
+      if(SIG[s]){ res.videoCodec = SIG[s]; res.viaScan = true; break; }
+    }
+  }
+  return res;
+}
+
+/* --------------------------------------------------------------------------
+   Последний рубеж для fps: считаем реальные кадры через requestVideoFrameCallback.
+   Работает даже там, где таблиц в moov нет вообще — фрагментированный MP4,
+   переменная частота, экзотический мукс. Стоит меньше секунды и запускается
+   только если из метаданных частоту вытащить не удалось.
+   -------------------------------------------------------------------------- */
+function measureFps(url){
+  return new Promise(resolve => {
+    const v = document.createElement('video');
+    if(!v.requestVideoFrameCallback){ resolve(null); return; }
+    v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = url;
+    let first = null, last = null, n = 0, done = false;
+    const finish = () => {
+      if(done) return; done = true;
+      try{ v.pause(); }catch(e){}
+      resolve(n > 4 && last > first ? n / (last - first) : null);
+    };
+    const step = (now, meta) => {
+      if(first === null) first = meta.mediaTime;
+      else { last = meta.mediaTime; n++; }
+      if((meta.mediaTime - first) > 0.9 || n > 200) return finish();
+      v.requestVideoFrameCallback(step);
+    };
+    v.oncanplay = () => { v.requestVideoFrameCallback(step); const p = v.play(); if(p) p.catch(finish); };
+    v.onerror = finish;
+    setTimeout(finish, 2500);
+  });
+}
+
+/* --------------------------------------------------------------------------
+   Найти moov, где бы он ни лежал.
+   Без web-оптимизации Media Encoder и AE пишут moov в КОНЕЦ файла, после mdat.
+   Поэтому идём по верхнеуровневым боксам точечными чтениями по 16 байт
+   и вытаскиваем только сам moov — файл целиком в память не поднимается.
+   -------------------------------------------------------------------------- */
+async function locateMoov(file){
+  const CAP = 96*MB;
+  let off = 0, guard = 0;
+  while(off + 8 <= file.size && guard++ < 8192){
+    const dv = new DataView(await file.slice(off, off+16).arrayBuffer());
+    if(dv.byteLength < 8) break;
+    let size = dv.getUint32(0); let hdr = 8;
+    const type = String.fromCharCode(dv.getUint8(4),dv.getUint8(5),dv.getUint8(6),dv.getUint8(7));
+    if(!/^[\x20-\x7e]{4}$/.test(type))
+      return {buf:null, note:'контейнер не MP4/MOV — метаданные не читаются'};
+    if(size === 1){
+      if(dv.byteLength < 16) break;
+      size = dv.getUint32(8)*4294967296 + dv.getUint32(12); hdr = 16;
+    } else if(size === 0) size = file.size - off;
+    if(size < hdr) return {buf:null, note:'повреждённая структура файла'};
+    if(type === 'moov'){
+      if(size > CAP) return {buf:null, note:'таблица moov больше 96 MB'};
+      return {buf: await file.slice(off, off + Math.min(size, file.size - off)).arrayBuffer(), note:null};
+    }
+    off += size;
+  }
+  return {buf:null, note:'секция moov не найдена'};
+}
+
+const snapFps = f => {
+  if(f == null) return null;
+  /* берём БЛИЖАЙШУЮ стандартную частоту, а не первую подходящую:
+     59.94 стоит в списке раньше 60, и ровный 60 подтягивался к ней */
+  const list = [23.976,24,25,29.97,30,48,50,59.94,60,120];
+  let best = null, bd = 0.25;
+  for(const c of list){ const d = Math.abs(f - c); if(d < bd){ bd = d; best = c; } }
+  return best !== null ? best : Math.round(f*100)/100;
+};
+
+function detectPadding(src,w,h){
+  try{
+    const sc = Math.min(1, 1400/Math.max(w,h));
+    const cw = Math.max(1,Math.round(w*sc)), ch = Math.max(1,Math.round(h*sc));
+    const c = document.createElement('canvas'); c.width = cw; c.height = ch;
+    const ctx = c.getContext('2d',{willReadFrequently:true});
+    ctx.drawImage(src,0,0,cw,ch);
+    const d = ctx.getImageData(0,0,cw,ch).data;
+    const px = (x,y) => { const i = (y*cw+x)*4; return [d[i],d[i+1],d[i+2],d[i+3]]; };
+    const same = (a,b) => Math.abs(a[0]-b[0])<4 && Math.abs(a[1]-b[1])<4 && Math.abs(a[2]-b[2])<4 && Math.abs(a[3]-b[3])<6;
+    const row = (y,r) => { for(let x=0;x<cw;x++) if(!same(px(x,y),r)) return false; return true; };
+    const col = (x,r) => { for(let y=0;y<ch;y++) if(!same(px(x,y),r)) return false; return true; };
+    let t=0,b=0,l=0,r=0;
+    const rt=px(0,0), rb=px(0,ch-1), rl=px(0,0), rr=px(cw-1,0);
+    while(t < ch && row(t,rt)) t++;
+    while(b < ch-t && row(ch-1-b,rb)) b++;
+    while(l < cw && col(l,rl)) l++;
+    while(r < cw-l && col(cw-1-r,rr)) r++;
+    const inv = 1/sc;
+    return {t:Math.round(t*inv), b:Math.round(b*inv), l:Math.round(l*inv), r:Math.round(r*inv)};
+  }catch(e){ return null; }
+}
+
+function thumbFrom(src,w,h){
+  try{
+    const s = Math.min(1, 260/Math.max(w,h));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1,Math.round(w*s)); c.height = Math.max(1,Math.round(h*s));
+    c.getContext('2d').drawImage(src,0,0,c.width,c.height);
+    return c.toDataURL('image/jpeg',.82);
+  }catch(e){ return null; }
+}
+
+async function probe(file){
+  const ext = extOf(file.name), fmt = normFmt(ext);
+  const isVideo = file.type.indexOf('video/') === 0 || ['mp4','mov','m4v','webm'].indexOf(ext) >= 0;
+  const i = {file,name:file.name,size:file.size,ext,fmt,kind:isVideo?'video':'image',
+    w:null,h:null,model:null,hasAlpha:null,bitLabel:null,codec:null,audioCodec:null,
+    hasAudio:null,fps:null,cfr:null,duration:null,padding:null,thumb:null,probeNote:null};
+
+  if(!isVideo){
+    const head = await file.slice(0, Math.min(file.size, 8*MB)).arrayBuffer();
+    const meta = parsePNG(head) || parseJPEG(head);
+    if(meta){ i.w = meta.w; i.h = meta.h; i.model = meta.model; i.hasAlpha = meta.hasAlpha; i.bitLabel = meta.label; }
+    const url = URL.createObjectURL(file);
+    try{
+      const img = await new Promise((ok,no) => { const el = new Image();
+        el.onload = () => ok(el); el.onerror = () => no(0); el.src = url; });
+      if(!i.w) i.w = img.naturalWidth;
+      if(!i.h) i.h = img.naturalHeight;
+      i.padding = detectPadding(img, i.w, i.h);
+      i.thumb = thumbFrom(img, i.w, i.h);
+    }catch(e){} finally{ URL.revokeObjectURL(url); }
+  } else {
+    try{
+      const box = await locateMoov(file);
+      i.probeNote = box.note;
+      const m = box.buf ? parseMP4(box.buf) : null;
+      if(m){
+        Object.assign(i,{codec:m.videoCodec,audioCodec:m.audioCodec,hasAudio:m.hasAudio,
+          fps:snapFps(m.fps),cfr:m.cfr,duration:m.duration,w:m.w,h:m.h});
+        if(m.note) i.probeNote = m.note;
+      }
+    }catch(e){ i.probeNote = 'не удалось прочитать метаданные'; }
+    const url = URL.createObjectURL(file);
+    try{
+      const v = await new Promise((ok,no) => { const el = document.createElement('video');
+        el.preload='metadata'; el.muted=true; el.playsInline=true;
+        el.onloadedmetadata = () => ok(el); el.onerror = () => no(0); el.src = url; });
+      i.w = v.videoWidth || i.w; i.h = v.videoHeight || i.h;
+      if(isFinite(v.duration)) i.duration = v.duration;
+      await new Promise(r => { v.onseeked = r; v.currentTime = Math.min(.1,(v.duration||1)/10); setTimeout(r,1200); });
+      i.thumb = thumbFrom(v, i.w, i.h) || i.thumb;
+      if(i.fps == null){
+        const measured = await measureFps(url);
+        if(measured){ i.fps = snapFps(measured); i.fpsMeasured = true; i.probeNote = null; }
+      }
+    }catch(e){} finally{ URL.revokeObjectURL(url); }
+  }
+  return i;
+}
+
+/* ==========================================================================
+   3 · ПРОВЕРКА
+   Разрешение: точное совпадение ИЛИ больше при том же соотношении сторон,
+   если файл укладывается в лимит веса. exact:true отключает апскейл.
+   ========================================================================== */
+function evaluate(info, spec){
+  const c = []; let hard = 0;
+  const push = (state, x) => c.push({state:state, x:x});
+
+  const kindOk = spec.kind === 'any' || spec.kind === info.kind;
+  if(!kindOk){ push('fail', spec.kind === 'video' ? 'Нужно видео' : 'Нужна статика'); hard++; }
+
+  const fmtOk = spec.formats.indexOf(info.fmt) >= 0;
+  push(fmtOk ? 'pass' : 'fail', fmtOk
+    ? info.fmt.toUpperCase() + (spec.formats[0] === info.fmt ? ' · основной' : ' · допустим')
+    : (info.fmt||'?').toUpperCase() + ' → нужен ' + spec.formats.map(f=>f.toUpperCase()).join(' / '));
+  if(!fmtOk) hard++;
+
+  const arOk = !!(info.w && info.h) && Math.abs(info.w/info.h - spec.w/spec.h) < 0.005;
+  const exactRes = info.w === spec.w && info.h === spec.h;
+  const overRes = arOk && !exactRes && info.w > spec.w && info.h > spec.h && !spec.exact;
+  const resOk = exactRes || overRes;
+  push(resOk ? 'pass' : 'fail',
+    exactRes ? spec.w + ' × ' + spec.h
+    : overRes ? info.w + ' × ' + info.h + ' · с запасом от ' + spec.w + ' × ' + spec.h
+    : (info.w||'?') + ' × ' + (info.h||'?') + ' → нужно ' + spec.w + ' × ' + spec.h + (spec.exact ? ' строго' : ''));
+  if(!resOk) hard++;
+
+  if(info.size > spec.max){ push('fail', fmtBytes(info.size) + ' → лимит ' + fmtLimit(spec.max)); hard++; }
+  else{
+    push('pass', fmtBytes(info.size) + ' из ' + fmtLimit(spec.max));
+    if(spec.max >= MB && info.size > spec.max/MB*1e6)
+      push('warn','На границе: в Finder вес покажется выше лимита');
+    if(spec.rec && info.size > spec.rec) push('warn','Рекомендация — до ' + fmtLimit(spec.rec));
+  }
+
+  if(info.kind === 'video' && spec.kind !== 'image'){
+    const why = info.probeNote ? ' · ' + info.probeNote : '';
+    if(spec.codec){
+      const allow = CODEC_OK[spec.codec] || [spec.codec.toUpperCase()];
+      const want = allow.join(' / ');
+      if(info.codec == null) push('info','Кодек не определён' + why + ' · нужен ' + want);
+      else if(allow.indexOf(info.codec) < 0){ push('fail', info.codec + ' → нужен ' + want); hard++; }
+      else push('pass', info.codec + (info.codec === allow[0] ? ' · основной' : ' · допустим'));
+    }
+    if(spec.fps){
+      if(info.fps == null) push('info','FPS не определён' + why + ' · нужно ' + spec.fps);
+      else if(Math.abs(info.fps - spec.fps) > .5){ push('fail', info.fps + ' fps → нужно ' + spec.fps + ' fps'); hard++; }
+      else push('pass', spec.fps + ' fps');
+    }
+    if(spec.maxDur != null){
+      if(info.duration == null) push('info','Длительность не определена');
+      else if(info.duration > spec.maxDur + .05){ push('fail', fmtDur(info.duration) + ' → максимум ' + fmtDur(spec.maxDur)); hard++; }
+      else push('pass', fmtDur(info.duration) + ' из ' + fmtDur(spec.maxDur));
+    }
+    if(spec.minDur != null && info.duration != null && info.duration < spec.minDur){
+      push('fail', fmtDur(info.duration) + ' → минимум ' + fmtDur(spec.minDur)); hard++; }
+    /* Звук ничего не требует: его отсутствие — норма, наличие — просто факт. */
+    if(!info.hasAudio) push('info','Без звука');
+    else if(spec.audioCodec && info.audioCodec && info.audioCodec.toLowerCase() !== spec.audioCodec)
+      push('info','Звук ' + info.audioCodec + ' · в спеке указан ' + spec.audioCodec.toUpperCase());
+    else push('info','Звук ' + (info.audioCodec || 'есть') + ' — выключи, если он не задуман');
+    if(info.cfr === false) push('warn','Переменный fps');
+  }
+
+  if(info.kind === 'image'){
+    if(spec.noAlpha && info.fmt === 'png'){
+      if(info.hasAlpha){ push('fail','Есть альфа-канал → нужен PNG 24 без альфы'); hard++; }
+      else if(info.hasAlpha === false) push('pass','Без альфы');
+    }
+    if(spec.rgb){
+      if(info.model === 'CMYK'){ push('fail','CMYK → нужен RGB'); hard++; }
+      else if(info.model) push('pass', info.model);
+    }
+    if(info.padding){
+      const p = info.padding, mx = Math.max(p.t,p.b,p.l,p.r);
+      if(spec.padding === 'none' && mx > 2)
+        push('warn','Поля ' + p.t + '/' + p.r + '/' + p.b + '/' + p.l + ' px · спека требует no padding');
+      else if(spec.padding && spec.padding !== 'none')
+        push('info','Паддинг ' + spec.padding + ' · найдено ' + p.t + '/' + p.r + '/' + p.b + '/' + p.l + ' px');
+    }
+  }
+
+  if(spec.note) push('info', spec.note);
+
+  const verdict = hard === 0 ? 'pass'
+    : (kindOk && fmtOk && arOk && !resOk && hard === 1) ? 'near' : 'fail';
+  const fix = verdict === 'near' ? 'Пропорции верные · ресайз до ' + spec.w + ' × ' + spec.h : null;
+  return {spec:spec, checks:c, verdict:verdict, fix:fix, overRes:overRes};
+}
+
+/* Какие кодеки принимает плейсмент. Первый в списке — основной,
+   остальные допустимы. H.265 проходит везде, где спека требует H.264. */
+const CODEC_OK = {h264:['H.264','H.265'], h265:['H.265']};
+
+/* --------------------------------------------------------------------------
+   Близость слота к файлу. Чем меньше, тем выше в списке.
+   Соотношение сторон весит в 10 раз больше масштаба: 16:9 файл сначала
+   сравнивается с 16:9 слотами, и только потом — с 4:3 и 1:1.
+   Слот под другой тип медиа (видео против статики) уходит в самый низ.
+   -------------------------------------------------------------------------- */
+function distance(info, spec){
+  let d = 0;
+  if(spec.kind !== 'any' && spec.kind !== info.kind) d += 100;
+  if(info.w && info.h){
+    d += Math.abs(Math.log((info.w/info.h) / (spec.w/spec.h))) * 10;
+    d += Math.abs(Math.log(Math.sqrt(info.w*info.h) / Math.sqrt(spec.w*spec.h)));
+  }
+  if(spec.formats.indexOf(info.fmt) < 0) d += 2;
+  return d;
+}
+const byNear = info => (a,b) => distance(info, a.spec) - distance(info, b.spec);
+
+/* ==========================================================================
+   4 · ПЕРЕИМЕНОВАНИЕ → 1-ProjectName-AssetContext-Behance-1920-1080.jpg
+   ========================================================================== */
+const RU = {'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'e','ж':'zh','з':'z','и':'i',
+  'й':'y','к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u',
+  'ф':'f','х':'kh','ц':'ts','ч':'ch','ш':'sh','щ':'shch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya'};
+
+function pascal(s){
+  if(!s) return '';
+  const lat = String(s).toLowerCase().split('').map(ch => RU[ch] !== undefined ? RU[ch] : ch).join('');
+  return lat.normalize('NFKD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/gi,' ').trim().split(/\s+/).filter(Boolean)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
+}
+const platSlug = c => pascal(String(c).replace(/\.com$/,''));
+
+function firstPlatform(entry){
+  if(!entry.results) return null;
+  const p = entry.results.filter(r => r.verdict === 'pass')
+    .sort((a,b) => catRank(a.spec.cat) - catRank(b.spec.cat))[0];
+  return p ? p.spec.cat : null;
+}
+
+function buildName(entry, index){
+  const i = entry.info; if(!i) return '';
+  return [index,
+    pascal(state.project) || 'Project',
+    pascal(entry.context) || 'Asset',
+    platSlug(entry.target || firstPlatform(entry) || 'Unassigned'),
+    i.w || 0, i.h || 0].join('-') + '.' + (i.ext || 'bin');
+}
+
+/* ZIP без сжатия (store) — медиа уже сжато */
+const CRC_T = (function(){ const t = new Uint32Array(256);
+  for(let n=0;n<256;n++){ let c=n; for(let k=0;k<8;k++) c = (c & 1) ? (0xEDB88320 ^ (c>>>1)) : (c>>>1); t[n]=c>>>0; }
+  return t; })();
+function crc32(u8){ let c = 0xFFFFFFFF;
+  for(let i=0;i<u8.length;i++) c = CRC_T[(c ^ u8[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0; }
+
+function makeZip(files){
+  const enc = new TextEncoder(), parts = [], centrals = [];
+  let offset = 0;
+  for(const f of files){
+    const nb = enc.encode(f.name), crc = crc32(f.data), sz = f.data.length;
+    const lh = new Uint8Array(30 + nb.length), lv = new DataView(lh.buffer);
+    lv.setUint32(0,0x04034b50,true); lv.setUint16(4,20,true); lv.setUint16(6,0x0800,true);
+    lv.setUint16(8,0,true); lv.setUint16(10,0,true); lv.setUint16(12,0x21,true);
+    lv.setUint32(14,crc,true); lv.setUint32(18,sz,true); lv.setUint32(22,sz,true);
+    lv.setUint16(26,nb.length,true); lv.setUint16(28,0,true);
+    lh.set(nb,30);
+    parts.push(lh, f.data);
+
+    const ch = new Uint8Array(46 + nb.length), cv = new DataView(ch.buffer);
+    cv.setUint32(0,0x02014b50,true); cv.setUint16(4,20,true); cv.setUint16(6,20,true);
+    cv.setUint16(8,0x0800,true); cv.setUint16(10,0,true);
+    cv.setUint16(12,0,true); cv.setUint16(14,0x21,true);
+    cv.setUint32(16,crc,true); cv.setUint32(20,sz,true); cv.setUint32(24,sz,true);
+    cv.setUint16(28,nb.length,true); cv.setUint32(42,offset,true);
+    ch.set(nb,46);
+    centrals.push(ch);
+    offset += lh.length + sz;
+  }
+  const cdSize = centrals.reduce((a,b) => a + b.length, 0);
+  const eo = new Uint8Array(22), ev = new DataView(eo.buffer);
+  ev.setUint32(0,0x06054b50,true); ev.setUint16(8,files.length,true);
+  ev.setUint16(10,files.length,true); ev.setUint32(12,cdSize,true); ev.setUint32(16,offset,true);
+  return new Blob(parts.concat(centrals,[eo]), {type:'application/zip'});
+}
+
+/* ==========================================================================
+   5 · ИНТЕРФЕЙС
+   ========================================================================== */
+const state = {files:[], sel:-1, project:'', showFails:false, f:{cat:'',group:'',spec:''}};
+const $ = id => document.getElementById(id);
+const els = {drop:$('drop'), input:$('input'), queue:$('queue'), work:$('work'),
+  project:$('project'), specCount:$('specCount'), btnZip:$('btnZip')};
+
+els.specCount.textContent = SPECS.length + ' плейсментов · ' + CAT_ORDER.length + ' площадок';
+els.project.addEventListener('input', e => { state.project = e.target.value; renderQueue(); });
+els.input.addEventListener('change', e => addFiles(e.target.files));
+els.drop.addEventListener('keydown', e => {
+  if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); els.input.click(); }});
+['dragenter','dragover'].forEach(ev => document.addEventListener(ev, e => {
+  e.preventDefault(); els.drop.classList.add('hot'); }));
+document.addEventListener('dragleave', e => {
+  if(e.target === document.documentElement) els.drop.classList.remove('hot'); });
+document.addEventListener('drop', e => {
+  e.preventDefault(); els.drop.classList.remove('hot'); addFiles(e.dataTransfer.files); });
+
+async function addFiles(list){
+  const arr = Array.prototype.slice.call(list);
+  for(const f of arr){
+    const entry = {file:f, name:f.name, context:'', target:'', loading:true, info:null, results:null};
+    state.files.push(entry);
+    if(state.sel < 0) state.sel = 0;
+    renderQueue(); renderWork();
+    entry.info = await probe(f);
+    entry.results = SPECS.map(s => evaluate(entry.info, s));
+    entry.target = firstPlatform(entry) || '';
+    entry.loading = false;
+    renderQueue(); renderWork();
+  }
+  const ready = state.files.some(f => !f.loading);
+  els.btnZip.disabled = !ready;
+}
+
+function removeFile(idx){
+  state.files.splice(idx, 1);
+  if(!state.files.length) state.sel = -1;
+  else if(state.sel > idx) state.sel--;
+  else if(state.sel >= state.files.length) state.sel = state.files.length - 1;
+  els.btnZip.disabled = !state.files.some(f => !f.loading);
+  renderQueue(); renderWork();
+}
+
+function plural(n,a,b,c){ const t = n%10, h = n%100;
+  return (t===1 && h!==11) ? a : (t>=2 && t<=4 && (h<10||h>=20)) ? b : c; }
+
+function renderQueue(){
+  els.queue.innerHTML = state.files.map((e,i) => {
+    const pass = e.results ? e.results.filter(r => r.verdict === 'pass').length : null;
+    return '<div class="qrow ' + (i === state.sel ? 'sel' : '') + '" data-i="' + i + '">'
+      + '<div class="qnum">' + String(i+1).padStart(2,'0') + '</div>'
+      + '<div class="qthumb">' + (e.info && e.info.thumb ? '<img src="' + e.info.thumb + '" alt="">' : '') + '</div>'
+      + '<div><div class="qname" title="' + esc(e.name) + '">' + esc(e.name) + '</div>'
+      + '<div class="qstat ' + (pass ? 'ok' : 'no') + '">'
+      + (e.loading ? 'Читаю…' : pass ? pass + ' ' + plural(pass,'плейсмент','плейсмента','плейсментов') : 'Нет совпадений')
+      + '</div>'
+      + '<input class="qctx" data-ctx="' + i + '" value="' + esc(e.context) + '" placeholder="AssetContext" autocomplete="off" spellcheck="false">'
+      + (e.info ? '<div class="qout">' + esc(buildName(e, i+1)) + '</div>' : '')
+      + '</div>'
+      + '<button class="qdel" data-del="' + i + '" title="Убрать из очереди" aria-label="Убрать из очереди">×</button>'
+      + '</div>';
+  }).join('');
+
+  Array.prototype.forEach.call(els.queue.querySelectorAll('.qdel'), el =>
+    el.addEventListener('click', ev => { ev.stopPropagation(); removeFile(+el.dataset.del); }));
+
+  Array.prototype.forEach.call(els.queue.querySelectorAll('.qrow'), el =>
+    el.addEventListener('click', ev => {
+      if(ev.target.classList.contains('qctx')) return;
+      state.sel = +el.dataset.i; renderQueue(); renderWork();
+    }));
+  Array.prototype.forEach.call(els.queue.querySelectorAll('.qctx'), el =>
+    el.addEventListener('input', ev => {
+      const idx = +el.dataset.ctx, e = state.files[idx];
+      e.context = ev.target.value;
+      const out = el.parentElement.querySelector('.qout');
+      if(out) out.textContent = buildName(e, idx + 1);
+    }));
+}
+
+function renderWork(){
+  const e = state.files[state.sel];
+  if(!e){ els.work.innerHTML =
+    '<div class="void"><div class="t-lead dim">Очередь пуста</div>'
+    + '<div class="t-micro">Закинь ассет — покажу, куда он проходит.</div></div>'; return; }
+  if(e.loading){ els.work.innerHTML = '<div class="void"><div class="t-lead dim">Читаю файл…</div></div>'; return; }
+
+  const i = e.info;
+  const cells = [['Разрешение', (i.w||'?') + ' × ' + (i.h||'?'), i.w && i.h ? arLabel(i.w,i.h) : ''],
+                 ['Вес', fmtBytes(i.size), ''],
+                 ['Формат', (i.fmt||'?').toUpperCase(), i.bitLabel || '']];
+  if(i.kind === 'image'){
+    cells.push(['Цвет', i.model || '—', i.hasAlpha === true ? 'альфа есть' : i.hasAlpha === false ? 'без альфы' : '']);
+    if(i.padding) cells.push(['Поля', i.padding.t + ' / ' + i.padding.r + ' / ' + i.padding.b + ' / ' + i.padding.l, 'эвристика, px']);
+  } else {
+    cells.push(['Кодек', i.codec || '—', i.codec ? (i.cfr === false ? 'переменный fps' : '') : (i.probeNote || '')]);
+    cells.push(['FPS', i.fps != null ? String(i.fps) : '—',
+      i.fpsMeasured ? 'измерено по кадрам' : (i.fps == null && i.codec ? (i.probeNote || '') : '')]);
+    cells.push(['Длительность', fmtDur(i.duration), '']);
+    cells.push(['Звук', i.hasAudio ? (i.audioCodec || 'есть') : 'нет', '']);
+  }
+
+  const rank = byNear(i);
+  const pass = e.results.filter(r => r.verdict === 'pass')
+    .sort((a,b) => (a.overRes?1:0) - (b.overRes?1:0) || rank(a,b));
+  const near = e.results.filter(r => r.verdict === 'near').sort(rank);
+  const fail = e.results.filter(r => r.verdict === 'fail').sort(rank);
+
+  let html = '<section class="slab">'
+    + '<div class="t-eyebrow">Файл ' + String(state.sel+1).padStart(2,'0') + '</div>'
+    + '<div class="t-display" style="margin-top:10px">' + esc(e.name) + '</div>'
+    + '<div class="measure">' + cells.map(c =>
+        '<div class="mcell"><div class="t-label">' + c[0] + '</div>'
+        + '<div class="t-data">' + esc(c[1]) + '</div>'
+        + (c[2] ? '<div class="t-micro">' + esc(c[2]) + '</div>' : '') + '</div>').join('')
+    + '</div></section>'
+    + '<section class="slab slab-tight">'
+    + '<div class="t-eyebrow" style="margin-bottom:12px">Выбрать плейсмент</div>'
+    + selectorHTML() + focusHTML(e) + '</section>';
+
+  if(!state.f.spec){
+    if(pass.length) html += groupHTML('Проходит', pass);
+    if(near.length) html += groupHTML('Пропорции верные · нужен ресайз', near);
+    html += '<div class="tail"><span class="t-eyebrow">Не проходит · ' + fail.length + '</span>'
+      + '<button class="btn" style="width:auto;padding:8px 18px" id="tgl">'
+      + (state.showFails ? 'Скрыть' : 'Показать') + '</button></div>';
+    if(state.showFails) html += '<div class="matrix">' + fail.map(unitHTML).join('') + '</div>';
+  }
+
+  els.work.innerHTML = html;
+  wireSelector();
+  const t = $('tgl'); if(t) t.onclick = () => { state.showFails = !state.showFails; renderWork(); };
+}
+
+function arLabel(w,h){
+  const g = (a,b) => b ? g(b,a%b) : a; const d = g(w,h);
+  const a = w/d, b = h/d;
+  return (a > 40 || b > 40) ? (w/h).toFixed(3) + ' : 1' : a + ' × ' + b;
+}
+
+/* собственный выпадающий список — у нативного select межстрочник задаёт ОС */
+function comboHTML(key, items, current, disabled){
+  const cur = items.filter(o => String(o.v) === String(current))[0] || items[0];
+  return '<div class="combo' + (disabled ? ' is-off' : '') + '" data-key="' + key + '">'
+    + '<button type="button" class="combo-btn" aria-haspopup="listbox" aria-expanded="false"'
+      + (disabled ? ' disabled' : '') + '>'
+      + '<span class="combo-val">' + esc(cur ? cur.l : '—') + '</span>'
+      + '<span class="combo-caret">▼</span></button>'
+    + '<div class="combo-list" role="listbox" tabindex="-1" hidden>'
+      + items.map(o => '<div class="combo-opt' + (String(o.v) === String(current) ? ' on' : '')
+          + '" role="option" data-v="' + esc(o.v) + '">'
+          + '<span>' + esc(o.l) + '</span>'
+          + (o.meta ? '<span class="meta">' + esc(o.meta) + '</span>' : '') + '</div>').join('')
+    + '</div></div>';
+}
+
+function selectorHTML(){
+  const f = state.f;
+  const cats = CAT_ORDER.filter(c => SPECS.some(s => s.cat === c));
+  const groups = f.cat ? SPECS.filter(s => s.cat === f.cat).map(s => s.group)
+    .filter((v,i,a) => a.indexOf(v) === i) : [];
+  const slots = (f.cat && f.group) ? SPECS.filter(s => s.cat === f.cat && s.group === f.group) : [];
+
+  const catItems = [{v:'', l:'Все площадки'}].concat(cats.map(c => ({
+    v:c, l:c, meta: SPECS.filter(s => s.cat === c).length + ' слот.' })));
+  const groupItems = [{v:'', l: f.cat ? 'Все типы' : '—'}].concat(groups.map(g => ({
+    v:g, l:g, meta: SPECS.filter(s => s.cat === f.cat && s.group === g).length + ' слот.' })));
+  const slotItems = [{v:'', l: f.group ? 'Все слоты' : '—'}].concat(slots.map(s => ({
+    v:s.id, l: s.ar + ' · ' + s.w + '×' + s.h, meta: s.place })));
+
+  return '<div class="selector">'
+    + '<div class="sel-cell"><div class="t-label">Площадка</div>' + comboHTML('cat', catItems, f.cat, false) + '</div>'
+    + '<div class="sel-cell"><div class="t-label">Тип ассета</div>' + comboHTML('group', groupItems, f.group, !f.cat) + '</div>'
+    + '<div class="sel-cell"><div class="t-label">Слот</div>' + comboHTML('spec', slotItems, f.spec, !f.group) + '</div>'
+    + '<div class="sel-reset"><button id="selReset">Сброс</button></div></div>';
+}
+
+function pick(key, value){
+  if(key === 'cat')   state.f = {cat:value, group:'', spec:''};
+  if(key === 'group'){ state.f.group = value; state.f.spec = ''; }
+  if(key === 'spec')   state.f.spec = value;
+  renderWork();
+}
+
+function closeCombos(except){
+  Array.prototype.forEach.call(document.querySelectorAll('.combo.open'), c => {
+    if(c === except) return;
+    c.classList.remove('open');
+    c.querySelector('.combo-list').hidden = true;
+    c.querySelector('.combo-btn').setAttribute('aria-expanded','false');
+  });
+}
+document.addEventListener('click', e => { if(!e.target.closest || !e.target.closest('.combo')) closeCombos(null); });
+
+function wireSelector(){
+  Array.prototype.forEach.call(document.querySelectorAll('.combo'), combo => {
+    const btn = combo.querySelector('.combo-btn');
+    const list = combo.querySelector('.combo-list');
+    const opts = Array.prototype.slice.call(list.querySelectorAll('.combo-opt'));
+    const key = combo.dataset.key;
+    let cursor = Math.max(0, opts.findIndex(o => o.classList.contains('on')));
+
+    const paint = () => opts.forEach((o,i) => o.classList.toggle('cursor', i === cursor));
+    const open = () => {
+      closeCombos(combo);
+      combo.classList.add('open'); list.hidden = false;
+      btn.setAttribute('aria-expanded','true');
+      paint();
+      if(opts[cursor]) opts[cursor].scrollIntoView({block:'nearest'});
+      list.focus();
+    };
+    const shut = () => {
+      combo.classList.remove('open'); list.hidden = true;
+      btn.setAttribute('aria-expanded','false'); btn.focus();
+    };
+
+    btn.onclick = ev => { ev.stopPropagation(); combo.classList.contains('open') ? shut() : open(); };
+    opts.forEach((o,i) => { o.onclick = ev => { ev.stopPropagation(); pick(key, o.dataset.v); };
+                           o.onmouseenter = () => { cursor = i; paint(); }; });
+
+    list.onkeydown = ev => {
+      if(ev.key === 'Escape'){ ev.preventDefault(); shut(); }
+      else if(ev.key === 'ArrowDown'){ ev.preventDefault(); cursor = Math.min(opts.length-1, cursor+1); paint(); opts[cursor].scrollIntoView({block:'nearest'}); }
+      else if(ev.key === 'ArrowUp'){ ev.preventDefault(); cursor = Math.max(0, cursor-1); paint(); opts[cursor].scrollIntoView({block:'nearest'}); }
+      else if(ev.key === 'Home'){ ev.preventDefault(); cursor = 0; paint(); opts[0].scrollIntoView({block:'nearest'}); }
+      else if(ev.key === 'End'){ ev.preventDefault(); cursor = opts.length-1; paint(); opts[cursor].scrollIntoView({block:'nearest'}); }
+      else if(ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); pick(key, opts[cursor].dataset.v); }
+    };
+    btn.onkeydown = ev => {
+      if(ev.key === 'ArrowDown' || ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); open(); }
+    };
+  });
+  const r = $('selReset');
+  if(r) r.onclick = () => { state.f = {cat:'', group:'', spec:''}; renderWork(); };
+}
+
+function focusHTML(e){
+  const f = state.f;
+  if(!f.cat) return '';
+  const subset = e.results.filter(r => r.spec.cat === f.cat
+    && (!f.group || r.spec.group === f.group)
+    && (!f.spec || String(r.spec.id) === String(f.spec)))
+    .sort((a,b) => (a.verdict === 'pass' ? 0 : 1) - (b.verdict === 'pass' ? 0 : 1)
+                || byNear(e.info)(a,b));
+
+  if(f.spec){
+    const r = subset[0]; if(!r) return '';
+    const word = r.verdict === 'pass' ? (r.overRes ? 'Проходит с запасом' : 'Проходит')
+      : r.verdict === 'near' ? 'Нужен ресайз' : 'Не проходит';
+    return '<div class="focus"><div>' + stageHTML(r, 250, 200) + '</div><div>'
+      + '<div class="focus-verdict ' + (r.verdict === 'pass' ? '' : 'no') + '">' + word + '</div>'
+      + '<div class="t-label">' + esc(r.spec.cat) + ' · ' + esc(r.spec.place) + ' · ' + r.spec.ar + ' · ' + r.spec.w + ' × ' + r.spec.h + '</div>'
+      + '<div class="checks" style="max-width:540px">' + checksHTML(r) + '</div>'
+      + (r.fix ? '<div class="t-micro sig" style="margin-top:14px">' + esc(r.fix) + '</div>' : '')
+      + '</div></div>';
+  }
+  const p = subset.filter(r => r.verdict === 'pass').length;
+  return '<div style="margin-top:22px">'
+    + '<div class="t-label" style="margin-bottom:14px">' + esc(f.cat)
+    + (f.group ? ' · ' + esc(f.group) : '') + ' — проходит ' + p + ' из ' + subset.length + '</div>'
+    + '<div class="matrix" style="border-top:1px solid var(--rule)">' + subset.map(unitHTML).join('') + '</div></div>';
+}
+
+function stageHTML(r, boxW, boxH){
+  boxW = boxW || 218; boxH = boxH || 132;
+  const s = r.spec, sc = Math.min(boxW/s.w, boxH/s.h);
+  const w = Math.max(12, Math.round(s.w*sc)), h = Math.max(12, Math.round(s.h*sc));
+  const info = state.files[state.sel].info;
+  const show = r.verdict === 'pass' && info.thumb;
+  /* диагонали от угла до угла — чертёжная пометка пустой плашки;
+     non-scaling-stroke держит линию в 1px при любых пропорциях */
+  const cross = '<svg class="cross" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">'
+    + '<line x1="0" y1="0" x2="100" y2="100" vector-effect="non-scaling-stroke"/>'
+    + '<line x1="100" y1="0" x2="0" y2="100" vector-effect="non-scaling-stroke"/></svg>';
+  return '<div class="stage" style="height:' + boxH + 'px">'
+    + '<div class="rect" style="width:' + w + 'px;height:' + h + 'px">'
+    + (show ? '<img src="' + info.thumb + '" alt="">' : cross) + '</div></div>';
+}
+
+const MARK = {pass:'—', fail:'×', warn:'!', info:'·'};
+const checksHTML = r => r.checks.map(c =>
+  '<div class="chk ' + c.state + '"><span class="m">' + MARK[c.state] + '</span><span class="x">' + esc(c.x) + '</span></div>').join('');
+
+const groupHTML = (title, arr) =>
+  '<div class="grouphead"><span class="t-eyebrow">' + esc(title) + '</span>'
+  + '<span class="t-label">' + arr.length + '</span></div>'
+  + '<div class="matrix">' + arr.map(unitHTML).join('') + '</div>';
+
+function unitHTML(r){
+  const s = r.spec;
+  const badge = r.verdict === 'pass' ? (r.overRes ? 'С запасом' : 'Проходит')
+    : r.verdict === 'near' ? 'Ресайз' : 'Мимо';
+  return '<div class="unit ' + r.verdict + '">'
+    + '<div class="unit-head"><span class="t-label">' + esc(s.cat) + '</span>'
+    + '<span class="t-label" style="color:' + (r.verdict === 'pass' ? 'var(--ink)' : 'var(--signal)') + '">' + badge + '</span></div>'
+    + stageHTML(r)
+    + '<div class="t-micro">' + esc(s.place) + '</div>'
+    + '<div class="unit-ar">' + s.ar + '</div>'
+    + '<div class="unit-px">' + s.w + ' × ' + s.h + '</div>'
+    + '<div class="checks">' + checksHTML(r) + '</div>'
+    + (r.fix ? '<div class="t-micro sig" style="margin-top:12px">' + esc(r.fix) + '</div>' : '')
+    + '</div>';
+}
+
+/* экспорт */
+els.btnZip.onclick = async () => {
+  const ready = state.files.filter(f => f.info);
+  if(!ready.length) return;
+  flash(els.btnZip,'Собираю…', 120000);
+  try{
+    const entries = [];
+    for(const f of ready){
+      entries.push({name: buildName(f, state.files.indexOf(f)+1),
+                    data: new Uint8Array(await f.file.arrayBuffer())});
+    }
+    const blob = makeZip(entries);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (pascal(state.project) || 'Assets') + '-renamed.zip';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    flash(els.btnZip,'Готово');
+  }catch(err){ flash(els.btnZip,'Не хватило памяти'); }
+};
+
+function flash(btn, text, ms){
+  if(!btn.dataset.orig) btn.dataset.orig = btn.textContent;
+  btn.textContent = text;
+  clearTimeout(btn._t);
+  btn._t = setTimeout(() => { btn.textContent = btn.dataset.orig; }, ms || 1600);
+}
+</script>
+</body>
+</html>
